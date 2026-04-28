@@ -1,6 +1,8 @@
 faiss-cpu
+matplotlib
 numpy
 pandas
 plotly
 scikit-learn
 streamlit
+matplotlib

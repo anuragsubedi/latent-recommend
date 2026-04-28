@@ -39,12 +39,12 @@ def load_metadata(paths: ArtifactPaths) -> pd.DataFrame:
 
 def demo_tracks() -> pd.DataFrame:
     rows = [
-        ("ambient", "Long Pad Drift", "Fixture Artist A", -1.2, 0.1, 0.3),
-        ("ambient", "Low Cloud Loop", "Fixture Artist B", -1.0, 0.2, 0.4),
-        ("dub", "Sub Delay Study", "Fixture Artist C", 0.6, -0.4, 0.2),
-        ("electronic", "Glitch Grid", "Fixture Artist D", 0.9, 0.5, -0.2),
-        ("classical", "String Room", "Fixture Artist E", -0.3, 1.1, -0.5),
-        ("heavy_metal", "Bright Distortion", "Fixture Artist F", 1.4, -1.0, 0.6),
+        ("ambient_soundscape", "Long Pad Drift", "Fixture Artist A", -1.2, 0.1, 0.3),
+        ("electronic_dance", "Sub Pulse Study", "Fixture Artist B", -1.0, 0.2, 0.4),
+        ("classical_orchestral", "String Room", "Fixture Artist C", 0.6, -0.4, 0.2),
+        ("jazz_soul", "Blue Interval", "Fixture Artist D", 0.9, 0.5, -0.2),
+        ("hiphop_rap", "Loop Grid", "Fixture Artist E", -0.3, 1.1, -0.5),
+        ("indie_rock", "Bright Distortion", "Fixture Artist F", 1.4, -1.0, 0.6),
     ]
     data = []
     for idx, (tag, title, artist, x, y, z) in enumerate(rows):
@@ -53,8 +53,13 @@ def demo_tracks() -> pd.DataFrame:
                 "faiss_id": idx,
                 "track_id": f"fixture-{idx}",
                 "title": title,
+                "display_title": title,
                 "artist": artist,
+                "artist_id": f"fixture-artist-{idx}",
+                "artist_display_name": artist,
                 "album": "Fixture Set",
+                "album_id": "fixture-album",
+                "album_display_title": "Fixture Set",
                 "duration": 30.0,
                 "primary_tag": tag,
                 "tags": tag,

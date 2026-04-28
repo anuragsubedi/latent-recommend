@@ -13,7 +13,10 @@ TRACK_COLUMNS = [
     "faiss_id",
     "track_id",
     "title",
+    "display_title",
+    "artist_id",
     "artist",
+    "album_id",
     "album",
     "duration",
     "primary_tag",
@@ -54,7 +57,10 @@ def initialize_schema(conn: sqlite3.Connection) -> None:
             faiss_id INTEGER PRIMARY KEY,
             track_id TEXT UNIQUE,
             title TEXT,
+            display_title TEXT,
+            artist_id TEXT,
             artist TEXT,
+            album_id TEXT,
             album TEXT,
             duration REAL,
             primary_tag TEXT NOT NULL,
@@ -86,6 +92,34 @@ def initialize_schema(conn: sqlite3.Connection) -> None:
             value REAL,
             details_json TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS artists (
+            artist_id TEXT PRIMARY KEY,
+            display_name TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS albums (
+            album_id TEXT PRIMARY KEY,
+            artist_id TEXT,
+            display_title TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS generated_playlists (
+            playlist_id TEXT PRIMARY KEY,
+            anchor_faiss_id INTEGER,
+            strategy TEXT NOT NULL,
+            size INTEGER NOT NULL,
+            seed INTEGER,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS playlist_tracks (
+            playlist_id TEXT NOT NULL,
+            faiss_id INTEGER NOT NULL,
+            position INTEGER NOT NULL,
+            role TEXT DEFAULT 'member',
+            PRIMARY KEY (playlist_id, faiss_id)
+        );
         """
     )
     conn.commit()
@@ -109,10 +143,28 @@ def insert_tracks(conn: sqlite3.Connection, rows: Iterable[Mapping[str, object]]
 
 def load_tracks(db_path: Path | str) -> pd.DataFrame:
     with connect(db_path) as conn:
-        return pd.read_sql_query(
-            "SELECT * FROM tracks ORDER BY faiss_id ASC",
-            conn,
-        )
+        tables = {
+            row["name"]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            ).fetchall()
+        }
+        if {"artists", "albums"}.issubset(tables):
+            return pd.read_sql_query(
+                """
+                SELECT
+                    t.*,
+                    COALESCE(t.display_title, t.title, 'Jamendo Track ' || t.track_id) AS track_display_title,
+                    COALESCE(a.display_name, t.artist, 'Unknown Artist') AS artist_display_name,
+                    COALESCE(al.display_title, t.album, 'Unknown Album') AS album_display_title
+                FROM tracks t
+                LEFT JOIN artists a ON a.artist_id = COALESCE(t.artist_id, t.artist)
+                LEFT JOIN albums al ON al.album_id = COALESCE(t.album_id, t.album)
+                ORDER BY t.faiss_id ASC
+                """,
+                conn,
+            )
+        return pd.read_sql_query("SELECT * FROM tracks ORDER BY faiss_id ASC", conn)
 
 
 def update_projection_columns(
@@ -131,3 +183,13 @@ def update_projection_columns(
                 values,
             )
         conn.commit()
+
+
+def upsert_evaluation(conn: sqlite3.Connection, metric: str, value: float | None, details_json: str) -> None:
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO evaluations (metric, value, details_json)
+        VALUES (?, ?, ?)
+        """,
+        (metric, value, details_json),
+    )

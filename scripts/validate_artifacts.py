@@ -13,7 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from latent_recommend.config import ArtifactPaths
-from latent_recommend.db import load_tracks
+from latent_recommend.db import connect, load_tracks
 
 
 def parse_args() -> argparse.Namespace:
@@ -42,6 +42,17 @@ def main() -> None:
         tracks["faiss_id"].tolist() == list(range(len(tracks)))
     )
     checks["primary_tags"] = tracks["primary_tag"].value_counts().to_dict()
+    with connect(paths.metadata_path) as conn:
+        tables = {
+            row["name"]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            ).fetchall()
+        }
+        for table in ("artists", "albums", "generated_playlists", "playlist_tracks", "evaluations"):
+            checks[f"{table}_table"] = table in tables
+            if table in tables:
+                checks[f"{table}_rows"] = int(conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
 
     if checks["embeddings_npy"]:
         embeddings = np.load(paths.embeddings_path)

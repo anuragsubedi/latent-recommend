@@ -55,10 +55,21 @@ def main() -> None:
     output_paths = ArtifactPaths(root=args.output)
     output_paths.root.mkdir(parents=True, exist_ok=True)
     output_paths.previews_dir.mkdir(parents=True, exist_ok=True)
+    for stale_file in (
+        output_paths.metadata_path,
+        output_paths.embeddings_path,
+        output_paths.index_path,
+        output_paths.manifest_path,
+        output_paths.metrics_path,
+    ):
+        if stale_file.exists():
+            stale_file.unlink()
 
     merged_embeddings = []
     merged_rows = []
     shard_summaries = []
+    seen_track_ids = set()
+    duplicate_track_ids = []
     next_faiss_id = 0
 
     for shard_root in args.shards:
@@ -76,6 +87,18 @@ def main() -> None:
             )
 
         for local_idx, (_, row) in enumerate(tracks.iterrows()):
+            track_id = str(row.get("track_id"))
+            if track_id in seen_track_ids:
+                duplicate_track_ids.append(
+                    {
+                        "track_id": track_id,
+                        "source": str(shard_root),
+                        "primary_tag": row.get("primary_tag"),
+                    }
+                )
+                continue
+            seen_track_ids.add(track_id)
+
             new_row = row.to_dict()
             new_row["faiss_id"] = next_faiss_id
             new_row["preview_path"] = rewrite_preview_path(
@@ -109,20 +132,31 @@ def main() -> None:
         conn.commit()
 
     np.save(output_paths.embeddings_path, merged_matrix)
-    save_faiss_index(merged_matrix, output_paths.index_path, metric="cosine")
+    faiss_index_written = True
+    try:
+        save_faiss_index(merged_matrix, output_paths.index_path, metric="cosine")
+    except ImportError:
+        faiss_index_written = False
+        print("faiss is not installed locally; skipped merged vectors.index creation.")
     output_paths.manifest_path.write_text(
         json.dumps(
             {
                 "kind": "merged_shards",
                 "tracks": int(len(merged_rows)),
                 "embedding_dimensions": int(merged_matrix.shape[1]),
+                "faiss_index_written": faiss_index_written,
+                "duplicate_tracks_skipped": len(duplicate_track_ids),
+                "duplicate_track_examples": duplicate_track_ids[:20],
                 "shards": shard_summaries,
             },
             indent=2,
             sort_keys=True,
         )
     )
-    print(f"Merged {len(merged_rows)} tracks into {output_paths.root}")
+    print(
+        f"Merged {len(merged_rows)} tracks into {output_paths.root}; "
+        f"skipped {len(duplicate_track_ids)} duplicate track IDs."
+    )
 
 
 if __name__ == "__main__":

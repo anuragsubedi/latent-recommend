@@ -58,6 +58,11 @@ class RetrievalEngine:
         if self.embeddings is not None:
             vectors = np.asarray(self.embeddings, dtype="float32")
             self.embeddings = normalize_embeddings(vectors) if self.metric == "cosine" else vectors
+            covariance = np.cov(self.embeddings.T)
+            covariance += np.eye(covariance.shape[0]) * 1e-3
+            self._mahalanobis_inv = np.linalg.pinv(covariance).astype("float32")
+        else:
+            self._mahalanobis_inv = None
         self._index = None
         if self.index_path is not None and faiss is not None and Path(self.index_path).exists():
             self._index = faiss.read_index(str(self.index_path))
@@ -66,6 +71,20 @@ class RetrievalEngine:
         if mode == "faiss" and self._index is not None:
             return self._query_faiss(faiss_id, k)
         return self._query_numpy(faiss_id, k, mode)
+
+    def query_many(self, faiss_ids: list[int], k: int = 10, mode: str = "raw64") -> pd.DataFrame:
+        if self.embeddings is None:
+            raise ValueError("embeddings are required for multi-seed retrieval.")
+        seed_ids = [int(seed_id) for seed_id in faiss_ids]
+        if not seed_ids:
+            return pd.DataFrame()
+        vectors = self._vectors_for_mode(mode)
+        query_vector = vectors[seed_ids].mean(axis=0)
+        if mode in {"raw64", "faiss"} and self.metric == "cosine":
+            norm = np.linalg.norm(query_vector)
+            if norm:
+                query_vector = query_vector / norm
+        return self._query_vector(query_vector, k=k, mode=mode, exclude_ids=set(seed_ids))
 
     def _query_faiss(self, faiss_id: int, k: int) -> pd.DataFrame:
         if self.embeddings is None:
@@ -82,25 +101,14 @@ class RetrievalEngine:
         if self.embeddings is None:
             raise ValueError("embeddings are required for NumPy retrieval.")
 
-        if mode == "pca3":
-            columns = ["pca_1", "pca_2", "pca_3"]
-            if all(column in self.tracks.columns for column in columns) and not self.tracks[columns].isna().any().any():
-                vectors = self.tracks[columns].to_numpy(dtype="float32")
-            else:
-                vectors = self.embeddings
-        elif mode == "pca10":
-            columns = [column for column in self.tracks.columns if column.startswith("pca10_")]
-            if len(columns) < 3 or self.tracks[columns].isna().any().any():
-                columns = ["pca_1", "pca_2", "pca_3"]
-            if all(column in self.tracks.columns for column in columns) and not self.tracks[columns].isna().any().any():
-                vectors = self.tracks[columns].to_numpy(dtype="float32")
-            else:
-                vectors = self.embeddings
-        else:
-            vectors = self.embeddings
-
+        vectors = self._vectors_for_mode(mode)
         query_vector = vectors[int(faiss_id)]
-        if self.metric == "cosine" and mode not in {"pca3", "pca10"}:
+        if mode == "mahalanobis":
+            delta = vectors - query_vector
+            scores = np.sqrt(np.einsum("ij,jk,ik->i", delta, self._mahalanobis_inv, delta))
+            order = np.argsort(scores)
+            distances = scores[order]
+        elif self.metric == "cosine" and mode not in {"pca3", "pca10"}:
             scores = vectors @ query_vector
             order = np.argsort(-scores)
             distances = scores[order]
@@ -109,6 +117,54 @@ class RetrievalEngine:
             order = np.argsort(scores)
             distances = scores[order]
         return self._format_results(order[: k + 1], distances[: k + 1], faiss_id)
+
+    def _vectors_for_mode(self, mode: str) -> np.ndarray:
+        if self.embeddings is None:
+            raise ValueError("embeddings are required for NumPy retrieval.")
+        if mode == "pca3":
+            columns = ["pca_1", "pca_2", "pca_3"]
+            if all(column in self.tracks.columns for column in columns) and not self.tracks[columns].isna().any().any():
+                return self.tracks[columns].to_numpy(dtype="float32")
+        if mode == "pca10":
+            columns = [f"pca10_{idx}" for idx in range(1, 11)]
+            if all(column in self.tracks.columns for column in columns) and not self.tracks[columns].isna().any().any():
+                return self.tracks[columns].to_numpy(dtype="float32")
+        return self.embeddings
+
+    def _query_vector(
+        self,
+        query_vector: np.ndarray,
+        k: int,
+        mode: str,
+        exclude_ids: set[int] | None = None,
+    ) -> pd.DataFrame:
+        vectors = self._vectors_for_mode(mode)
+        exclude_ids = exclude_ids or set()
+        if mode == "mahalanobis":
+            delta = vectors - query_vector
+            scores = np.sqrt(np.einsum("ij,jk,ik->i", delta, self._mahalanobis_inv, delta))
+            order = np.argsort(scores)
+            distances = scores[order]
+        elif self.metric == "cosine" and mode not in {"pca3", "pca10"}:
+            scores = vectors @ query_vector
+            order = np.argsort(-scores)
+            distances = scores[order]
+        else:
+            scores = np.linalg.norm(vectors - query_vector, axis=1)
+            order = np.argsort(scores)
+            distances = scores[order]
+        rows = []
+        for idx, distance in zip(order, distances):
+            idx = int(idx)
+            if idx in exclude_ids:
+                continue
+            row = self.tracks.iloc[idx].to_dict()
+            row["rank"] = len(rows) + 1
+            row["distance"] = float(distance)
+            rows.append(row)
+            if len(rows) >= k:
+                break
+        return pd.DataFrame(rows)
 
     def _format_results(
         self,

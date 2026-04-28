@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import os
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -30,7 +31,16 @@ class ArtifactPaths:
     extraction pipeline has produced them.
     """
 
-    root: Path = PROJECT_ROOT / "artifacts"
+    root: Path = field(
+        default_factory=lambda: Path(
+            os.environ.get(
+                "LATENT_RECOMMEND_ARTIFACTS",
+                PROJECT_ROOT / "artifacts" / "merged"
+                if (PROJECT_ROOT / "artifacts" / "merged").exists()
+                else PROJECT_ROOT / "artifacts",
+            )
+        )
+    )
 
     @property
     def index_path(self) -> Path:

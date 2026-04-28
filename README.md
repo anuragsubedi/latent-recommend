@@ -36,19 +36,33 @@ The M2 pipeline is split into two runtimes:
 2. Streamlit/CPU deployment loads finished FAISS, SQLite, metrics, and preview
    artifacts. It should never load the full ACE-Step LM/DiT inference stack.
 
-Expected generated artifacts:
+Canonical project reference: `documentations/m2_implementation_handoff.md`.
 
-- `artifacts/vectors.index`
-- `artifacts/metadata.db`
-- `artifacts/embeddings.npy`
-- `artifacts/metrics.json`
-- `artifacts/previews/*.mp3`
+Current merged artifact bundle:
+
+- `1,734` unique tracks after deduplicating `2,000` extracted rows.
+- `10` metadata-derived proxy playlist buckets.
+- `431` artist ID rows and `684` album ID rows with display fallbacks.
+- `30` generated synthetic playlists for multi-seed completion testing.
+
+Expected generated artifacts live under `artifacts/merged/`:
+
+- `vectors.index`
+- `metadata.db`
+- `embeddings.npy`
+- `metrics.json`
+- `manifest.json`
+- `runtime_profile_*.png`
+- `previews/*.mp3`
 
 ## Local Dashboard
 
-Install the lightweight runtime dependencies and run Streamlit:
+Create a project-local virtual environment, install dependencies, and run
+Streamlit:
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 streamlit run app.py
 ```
@@ -64,35 +78,65 @@ minimal and VAE-only.
 
 ## Evaluation And Deployment
 
-After the Colab artifact bundle is available locally:
+After the Colab artifact shards are available locally, run the local pipeline
+through the virtual environment:
 
 ```bash
-python scripts/evaluate_artifacts.py
-python scripts/validate_artifacts.py
-streamlit run app.py
+.venv/bin/python scripts/merge_artifact_shards.py \
+  artifacts/latent-recommend-artifacts-run1 \
+  artifacts/latent-recommend-artifacts-run2 \
+  --output artifacts/merged \
+  --copy-previews
+
+.venv/bin/python scripts/rebuild_metadata_model.py --artifacts artifacts/merged
+.venv/bin/python scripts/validate_artifacts.py --artifacts artifacts/merged
+.venv/bin/python scripts/evaluate_artifacts.py --artifacts artifacts/merged --k 10
+.venv/bin/python scripts/plot_runtime_profile.py \
+  artifacts/latent-recommend-artifacts-run1/runtime_profile.jsonl \
+  artifacts/latent-recommend-artifacts-run2/runtime_profile.jsonl \
+  --output-dir artifacts/merged
+
+.venv/bin/streamlit run app.py
 ```
 
-Deployment notes live in `documentations/m2/deployment_strategy.md`.
+Deployment notes live in `documentations/deployment_strategy.md`.
 
-For faster extraction, run two Colab jobs with three tags each and merge the
-resulting artifact shards:
+For faster extraction, run two Colab jobs with five proxy buckets each and merge
+the resulting artifact shards:
 
 ```bash
-python scripts/merge_artifact_shards.py \
+.venv/bin/python scripts/merge_artifact_shards.py \
   artifacts_shard_a artifacts_shard_b \
   --output artifacts --copy-previews
 ```
 Recommended two-session split:
 
+```python
 %env TARGET_TAGS=ambient_soundscape,electronic_dance,classical_orchestral,jazz_soul,blues_roots
 %env PER_TAG_LIMIT=200
+```
+
 and:
 
+```python
 %env TARGET_TAGS=hiphop_rap,folk_acoustic,indie_rock,experimental_trip_hop,happy_pop
 %env PER_TAG_LIMIT=200
+```
 
 Runtime profiling logs from Colab can be plotted with:
 
 ```bash
-python scripts/plot_runtime_profile.py artifacts_*/runtime_profile.jsonl --output-dir artifacts
+.venv/bin/python scripts/plot_runtime_profile.py artifacts_*/runtime_profile.jsonl --output-dir artifacts
 ```
+
+## Current Headline Metrics
+
+From the current `artifacts/merged` bundle:
+
+- Raw64 Precision@10: `0.2696`
+- Raw64 Precision@4: `0.3098`
+- MRR@10: `0.5205`
+- Playlist completion HitRate@4: `0.6667`
+- Playlist completion Precision@4: `0.2083`
+- Triplet success: `0.597`
+- Raw64 retrieval beats PCA10, PCA3, and Mahalanobis in the current ablation.
