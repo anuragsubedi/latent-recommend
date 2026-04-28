@@ -73,3 +73,18 @@ streamlit run app.py
 ```
 
 Deployment notes live in `documentations/m2/deployment_strategy.md`.
+
+For faster extraction, run two Colab jobs with three tags each and merge the
+resulting artifact shards:
+
+```bash
+python scripts/merge_artifact_shards.py \
+  artifacts_ambient_dub_electronic artifacts_metal_classical_folk \
+  --output artifacts --copy-previews
+```
+
+Runtime profiling logs from Colab can be plotted with:
+
+```bash
+python scripts/plot_runtime_profile.py artifacts_*/runtime_profile.jsonl --output-dir artifacts
+```
