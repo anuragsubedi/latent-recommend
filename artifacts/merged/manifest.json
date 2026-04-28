@@ -1,0 +1,193 @@
+{
+  "duplicate_track_examples": [
+    {
+      "primary_tag": "indie_rock",
+      "source": "artifacts/latent-recommend-artifacts-run2",
+      "track_id": "512846"
+    },
+    {
+      "primary_tag": "experimental_trip_hop",
+      "source": "artifacts/latent-recommend-artifacts-run2",
+      "track_id": "633103"
+    },
+    {
+      "primary_tag": "happy_pop",
+      "source": "artifacts/latent-recommend-artifacts-run2",
+      "track_id": "506151"
+    },
+    {
+      "primary_tag": "experimental_trip_hop",
+      "source": "artifacts/latent-recommend-artifacts-run2",
+      "track_id": "572361"
+    },
+    {
+      "primary_tag": "experimental_trip_hop",
+      "source": "artifacts/latent-recommend-artifacts-run2",
+      "track_id": "620945"
+    },
+    {
+      "primary_tag": "indie_rock",
+      "source": "artifacts/latent-recommend-artifacts-run2",
+      "track_id": "518129"
+    },
+    {
+      "primary_tag": "experimental_trip_hop",
+      "source": "artifacts/latent-recommend-artifacts-run2",
+      "track_id": "536419"
+    },
+    {
+      "primary_tag": "indie_rock",
+      "source": "artifacts/latent-recommend-artifacts-run2",
+      "track_id": "512847"
+    },
+    {
+      "primary_tag": "experimental_trip_hop",
+      "source": "artifacts/latent-recommend-artifacts-run2",
+      "track_id": "531904"
+    },
+    {
+      "primary_tag": "experimental_trip_hop",
+      "source": "artifacts/latent-recommend-artifacts-run2",
+      "track_id": "597307"
+    },
+    {
+      "primary_tag": "hiphop_rap",
+      "source": "artifacts/latent-recommend-artifacts-run2",
+      "track_id": "518171"
+    },
+    {
+      "primary_tag": "hiphop_rap",
+      "source": "artifacts/latent-recommend-artifacts-run2",
+      "track_id": "518164"
+    },
+    {
+      "primary_tag": "experimental_trip_hop",
+      "source": "artifacts/latent-recommend-artifacts-run2",
+      "track_id": "572353"
+    },
+    {
+      "primary_tag": "experimental_trip_hop",
+      "source": "artifacts/latent-recommend-artifacts-run2",
+      "track_id": "536429"
+    },
+    {
+      "primary_tag": "indie_rock",
+      "source": "artifacts/latent-recommend-artifacts-run2",
+      "track_id": "512845"
+    },
+    {
+      "primary_tag": "experimental_trip_hop",
+      "source": "artifacts/latent-recommend-artifacts-run2",
+      "track_id": "509068"
+    },
+    {
+      "primary_tag": "experimental_trip_hop",
+      "source": "artifacts/latent-recommend-artifacts-run2",
+      "track_id": "536424"
+    },
+    {
+      "primary_tag": "happy_pop",
+      "source": "artifacts/latent-recommend-artifacts-run2",
+      "track_id": "506152"
+    },
+    {
+      "primary_tag": "indie_rock",
+      "source": "artifacts/latent-recommend-artifacts-run2",
+      "track_id": "597326"
+    },
+    {
+      "primary_tag": "experimental_trip_hop",
+      "source": "artifacts/latent-recommend-artifacts-run2",
+      "track_id": "536431"
+    }
+  ],
+  "duplicate_tracks_skipped": 266,
+  "embedding_dimensions": 64,
+  "faiss_index_written": true,
+  "kind": "merged_shards",
+  "shards": [
+    {
+      "manifest": {
+        "checkpoint_every": 100,
+        "chunk_duration_sec": 200,
+        "dataset": "rkstgr/mtg-jamendo",
+        "errors": [],
+        "max_audio_seconds": 200,
+        "per_tag_limit": 200,
+        "preview_enabled": true,
+        "preview_seconds": 15,
+        "random_seed": 42,
+        "runtime_log_records": 1000,
+        "runtime_profile_path": "/content/latent-recommend-artifacts/runtime_profile.jsonl",
+        "shuffle_shards": true,
+        "split": "train",
+        "tag_counts": {
+          "ambient_soundscape": 200,
+          "blues_roots": 200,
+          "classical_orchestral": 200,
+          "electronic_dance": 200,
+          "jazz_soul": 200
+        },
+        "target_tags": [
+          "ambient_soundscape",
+          "electronic_dance",
+          "classical_orchestral",
+          "jazz_soul",
+          "blues_roots"
+        ],
+        "tracks_written": 1000
+      },
+      "path": "artifacts/latent-recommend-artifacts-run1",
+      "tags": {
+        "ambient_soundscape": 200,
+        "blues_roots": 200,
+        "classical_orchestral": 200,
+        "electronic_dance": 200,
+        "jazz_soul": 200
+      },
+      "tracks": 1000
+    },
+    {
+      "manifest": {
+        "checkpoint_every": 100,
+        "chunk_duration_sec": 200,
+        "dataset": "rkstgr/mtg-jamendo",
+        "errors": [],
+        "max_audio_seconds": 200,
+        "per_tag_limit": 200,
+        "preview_enabled": true,
+        "preview_seconds": 15,
+        "random_seed": 42,
+        "runtime_log_records": 1000,
+        "runtime_profile_path": "/content/latent-recommend-artifacts/runtime_profile.jsonl",
+        "shuffle_shards": true,
+        "split": "train",
+        "tag_counts": {
+          "experimental_trip_hop": 200,
+          "folk_acoustic": 200,
+          "happy_pop": 200,
+          "hiphop_rap": 200,
+          "indie_rock": 200
+        },
+        "target_tags": [
+          "hiphop_rap",
+          "folk_acoustic",
+          "indie_rock",
+          "experimental_trip_hop",
+          "happy_pop"
+        ],
+        "tracks_written": 1000
+      },
+      "path": "artifacts/latent-recommend-artifacts-run2",
+      "tags": {
+        "experimental_trip_hop": 200,
+        "folk_acoustic": 200,
+        "happy_pop": 200,
+        "hiphop_rap": 200,
+        "indie_rock": 200
+      },
+      "tracks": 1000
+    }
+  ],
+  "tracks": 1734
+}
