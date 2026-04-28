@@ -6,6 +6,7 @@ librosa
 matplotlib
 numpy
 pandas
+requests
 scikit-learn
 soundfile
 torch
