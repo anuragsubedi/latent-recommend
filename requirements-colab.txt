@@ -1,0 +1,14 @@
+accelerate
+datasets
+diffusers
+faiss-cpu
+librosa
+matplotlib
+numpy
+pandas
+scikit-learn
+soundfile
+torch
+torchaudio
+tqdm
+transformers

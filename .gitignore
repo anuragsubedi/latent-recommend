@@ -1,0 +1,28 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# Generated M2 artifacts. Track via Git LFS or a Hugging Face Dataset repo.
+artifacts/*.index
+artifacts/*.db
+artifacts/*.npy
+artifacts/*.npz
+artifacts/*.parquet
+artifacts/previews/*.mp3
+artifacts/previews/*.wav
+
+# Keep lightweight placeholders and documentation.
+!artifacts/.gitkeep
+!artifacts/fixtures/
+!artifacts/fixtures/.gitkeep
+!artifacts/previews/.gitkeep
+
+# exclude the ace-step checkpoints inside the ACE-Step directory
+ACE-Step/checkpoints/
+

@@ -1,70 +1,75 @@
-# `latent-recommend`: Music Search via Learned Audio Embeddings
+# `latent-recommend`
 
-## 1. Abstract & Goal
+`latent-recommend` is a content-first music recommendation project for a
+Statistical Machine Learning final milestone. The final system uses 64-D latent
+embeddings from the ACE-Step 1.5 waveform VAE to recommend songs by acoustic
+geometry rather than user-history or popularity signals.
 
-Modern music recommendation systems are driven by collaborative filtering (what other users listen to). This inadvertently builds echo chambers of popularity bias, trapping obscure/indie artists at the bottom of the algorithm while hyper-promoting mainstream tracks.
-
-**`latent-recommend`** fundamentally bypasses user-behavior metrics. It is a purely content-based search engine that evaluates the raw acoustic topology of music. By parsing audio through the ACE-Step 1.5 Diffusion Transformer VAE bottleneck, we extract deep latent embeddings. Applying Statistical Machine Learning (SML) techniques like PCA, K-Means clustering, and Nearest-Neighbors mapping allows us to recommend music *strictly by how it sounds*.
-
-## 2. Milestone 1 (Baseline Release)
-
-For Milestone 1, we establish the foundational metadata architecture and prove the core statistical theory using a massive **1.2M Spotify Kaggle Dataset**. By using pre-extracted proxy acoustic features (energy, valence, timbre mapping), we mathematically validate the clustering topologies required before stepping into heavy deep learning infrastructure in Milestone 2.
-
-### 2.1 The Baseline SML Components
-
-1. **The Kaggle Migration**: We utilize the `Rodolfofigueroa/spotify-12m-songs` corpus, pruning it to 1,000 highly curated tracks to populate an explicit 13-feature array inside SQLite.
-2. **Feature Pruning & Clustering**: We drop non-acoustic rigid identifiers (Key, Time Signature) to create an **8D Array** of raw acoustic feeling. We process this array through a **Unsupervised K-Means clustering algorithm** which natively discovers distinct geometric neighborhoods that we call "Organic Genres".
-3. **Dimensionality Reduction**: We apply Principal Component Analysis (PCA) to squash the 8 dimensions down into a **3D Latent Space Map**, proving that obscure tracks natively map directly adjacent to mainstream hits strictly due to their acoustic waveform geometry.
-
-## 3. Repository Structure (Milestone 1 Core)
+## Current Layout
 
 ```text
 latent-recommend/
-├── README.md                           # Project overview
-├── design_notes.md                     # Architectural log of API bottlenecks and M2 pivots
-├── documentations/
-│   ├── baseline_concepts.md            # Foundations of SML, PCA, & M1 vs M2 pipelines
-├── src/                            
-│   ├── scripts/prune_spotify_data.py   # Kagglehub fetcher to isolate the 1,000 track baseline
-│   ├── data_ingestion_kaggle.py        # SQLite builder mapping the massive 13-feature array
-│   ├── baseline_sml_kaggle.py          # 8D-to-3D PCA dimensionality reduction and clustering
-│   ├── data_ingestion.py               # Legacy synthetic test
-│   └── baseline_sml.py                 # Legacy hypothesis analysis
-└── data/                               # Local data dir (generated on runtime)
-    ├── pruned_spotify_tracks.csv       # The isolated dataset
-    └── metadata_kaggle.db              # Active SQLite database
+├── app/                         # Streamlit dashboard entrypoint
+├── artifacts/                   # Generated M2 outputs; mostly ignored by git
+├── documentations/              # Project notes, requirements, handoff docs
+├── latent_recommend/            # Reusable M2 Python package
+├── milestone1/                  # Archived Spotify-feature baseline
+├── notebooks/                   # Colab extraction notebooks
+├── scripts/                     # Local evaluation and validation commands
+├── ACE-Step/                    # Cloned upstream model repo; not used by M2 extraction
+└── VAE_latent_extraction_initial_setup.ipynb
 ```
 
-## 4. Steps to Run & Reproduce
+## Milestone 1 Baseline
 
-*Note: A Python 3.10+ virtual environment is required.*
+The Milestone 1 implementation is preserved under `milestone1/`. It validates
+the project’s SML framing using Spotify/Kaggle acoustic features, PCA, and
+K-Means. It is useful for narrative comparison, but M2 code should not depend on
+its old root-level `src/` paths.
 
-1. **Install Dependencies:**
-   Install required packages via `requirements.txt`:
-   ```bash
-   pip install -r requirements.txt
-   ```
-2. **Fetch and Prune the Kaggle CSV:**
-   This script securely downloads the massive Kaggle dataset and isolates your 1000-track subset.
+## Milestone 2 System
 
-   ```bash
-   python src/scripts/prune_spotify_data.py
-   ```
-3. **Build the Audio Database:**
-   Run the ingestion script to parse the CSV and build the local SQLite environment.
+The M2 pipeline is split into two runtimes:
 
-   ```bash
-   python src/data_ingestion_kaggle.py
-   ```
-4. **Execute Statistical Machine Learning Matrix:**
-   Run the baseline modeling script to compute the K-Means clusters and render the 3D PCA scatterplots.
+1. Colab/GPU extraction streams MTG-Jamendo samples, loads only the ACE-Step VAE
+   via `diffusers`, extracts 64-D embeddings, and writes `artifacts/`.
+2. Streamlit/CPU deployment loads finished FAISS, SQLite, metrics, and preview
+   artifacts. It should never load the full ACE-Step LM/DiT inference stack.
 
-   ```bash
-   python src/baseline_sml_kaggle.py
-   ```
+Expected generated artifacts:
 
-## 5. References & Data Sources
+- `artifacts/vectors.index`
+- `artifacts/metadata.db`
+- `artifacts/embeddings.npy`
+- `artifacts/metrics.json`
+- `artifacts/previews/*.mp3`
 
-- **Data APIs**: Spotify 1.2M Songs via Kaggle (`Rodolfofigueroa/spotify-12m-songs`)
-- **Core ML Logic**: `scikit-learn` (PCA, Unsupervised Clustering Matrix)
-- **Generative Bottleneck**: [ACE-Step 1.5](https://huggingface.co/ACE-Step/Ace-Step1.5) open-source audio foundation model.
+## Local Dashboard
+
+Install the lightweight runtime dependencies and run Streamlit:
+
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+The app can render a small demo fallback before final artifacts exist.
+
+## Colab Extraction
+
+Use `notebooks/one_shot_colab_extraction.ipynb` as the starting point for the
+full MTG-Jamendo run. It is derived from
+`VAE_latent_extraction_initial_setup.ipynb` but keeps the final extraction path
+minimal and VAE-only.
+
+## Evaluation And Deployment
+
+After the Colab artifact bundle is available locally:
+
+```bash
+python scripts/evaluate_artifacts.py
+python scripts/validate_artifacts.py
+streamlit run app.py
+```
+
+Deployment notes live in `documentations/m2/deployment_strategy.md`.
