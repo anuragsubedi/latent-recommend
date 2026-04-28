@@ -79,9 +79,17 @@ resulting artifact shards:
 
 ```bash
 python scripts/merge_artifact_shards.py \
-  artifacts_ambient_dub_electronic artifacts_metal_classical_folk \
+  artifacts_shard_a artifacts_shard_b \
   --output artifacts --copy-previews
 ```
+Recommended two-session split:
+
+%env TARGET_TAGS=ambient_soundscape,electronic_dance,classical_orchestral,jazz_soul,blues_roots
+%env PER_TAG_LIMIT=200
+and:
+
+%env TARGET_TAGS=hiphop_rap,folk_acoustic,indie_rock,experimental_trip_hop,happy_pop
+%env PER_TAG_LIMIT=200
 
 Runtime profiling logs from Colab can be plotted with:
 

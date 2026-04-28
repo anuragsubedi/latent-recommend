@@ -9,12 +9,16 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 DEFAULT_TARGET_TAGS = (
-    "ambient",
-    "dub",
-    "electronic",
-    "heavy_metal",
-    "classical",
-    "acoustic_folk",
+    "ambient_soundscape",
+    "electronic_dance",
+    "classical_orchestral",
+    "jazz_soul",
+    "blues_roots",
+    "hiphop_rap",
+    "folk_acoustic",
+    "indie_rock",
+    "experimental_trip_hop",
+    "happy_pop",
 )
 
 
