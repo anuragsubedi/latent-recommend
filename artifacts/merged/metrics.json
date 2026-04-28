@@ -1,0 +1,120 @@
+{
+  "ablation": {
+    "mahalanobis": {
+      "precision_at_10": 0.24010198968822452
+    },
+    "pca10": {
+      "precision_at_10": 0.20962197453918102
+    },
+    "pca3": {
+      "precision_at_10": 0.16332394528548377
+    },
+    "raw64": {
+      "precision_at_10": 0.2696212703400963
+    }
+  },
+  "artifact_integrity": {
+    "embedding_shape": [
+      1734,
+      64
+    ],
+    "embeddings_finite": true,
+    "faiss_ids_contiguous": true,
+    "metadata_rows": 1734,
+    "preview_rows": 1734
+  },
+  "dataset": {
+    "embedding_dimensions": 64,
+    "tags": {
+      "ambient_soundscape": 200,
+      "blues_roots": 200,
+      "classical_orchestral": 200,
+      "electronic_dance": 200,
+      "experimental_trip_hop": 150,
+      "folk_acoustic": 169,
+      "happy_pop": 117,
+      "hiphop_rap": 133,
+      "indie_rock": 165,
+      "jazz_soul": 200
+    },
+    "tracks": 1734
+  },
+  "generated_playlists": {
+    "count": 30,
+    "holdout_strategy": "centroid",
+    "size_max": 9,
+    "size_min": 5,
+    "strategy": "centroid_cohesive_acoustic"
+  },
+  "playlist_completion": {
+    "hit_rate@4": 0.9666666666666667,
+    "mrr@4": 0.7972222222222223,
+    "playlists": 30,
+    "precision@4": 0.43333333333333335,
+    "recall@4": 0.8666666666666667
+  },
+  "projection": {
+    "n_clusters": 8,
+    "pca10_explained_variance": [
+      0.11867270618677139,
+      0.07844273746013641,
+      0.07090219110250473,
+      0.06565995514392853,
+      0.061731044203042984,
+      0.058970991522073746,
+      0.04794997721910477,
+      0.04584944620728493,
+      0.03873635455965996,
+      0.0352051742374897
+    ],
+    "pca3_explained_variance": [
+      0.11867270618677139,
+      0.07844273746013641,
+      0.07090219110250473
+    ],
+    "umap_available": false
+  },
+  "retrieval": {
+    "mrr_at_10": 0.5205129437395873,
+    "precision_at_10": 0.2696212703400963,
+    "precision_at_4": 0.30977283973336606,
+    "precision_by_tag": {
+      "ambient_soundscape": 0.406,
+      "blues_roots": 0.3275,
+      "classical_orchestral": 0.5295000000000001,
+      "electronic_dance": 0.20200000000000004,
+      "experimental_trip_hop": 0.15533333333333332,
+      "folk_acoustic": 0.3597633136094675,
+      "happy_pop": 0.12991452991452992,
+      "hiphop_rap": 0.1593984962406015,
+      "indie_rock": 0.17030303030303032,
+      "jazz_soul": 0.2565
+    }
+  },
+  "topology": {
+    "centroid": {
+      "inter_mean": 0.32451080216301814,
+      "intra_by_tag": {
+        "ambient_soundscape": 0.6689679026603699,
+        "blues_roots": 0.805979311466217,
+        "classical_orchestral": 0.6086899042129517,
+        "electronic_dance": 0.8325416445732117,
+        "experimental_trip_hop": 0.8053469657897949,
+        "folk_acoustic": 0.800247311592102,
+        "happy_pop": 0.7820326685905457,
+        "hiphop_rap": 0.7984997034072876,
+        "indie_rock": 0.8322109580039978,
+        "jazz_soul": 0.7821976542472839
+      },
+      "intra_mean": 0.7716714024543763,
+      "separation_ratio": 0.4205297761856664
+    },
+    "clustering": {
+      "adjusted_rand_proxy": 0.048563546528314495,
+      "davies_bouldin": 2.866947101913695,
+      "normalized_mutual_info_proxy": 0.08867606046397591,
+      "silhouette": 0.04752350598573685
+    },
+    "triplet_success_rate": 0.597
+  }
+}
