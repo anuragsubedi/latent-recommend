@@ -139,110 +139,224 @@ def trapezoid(ax, x: float, y: float, w: float, h: float, title: str, subtitle: 
 
 def draw() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    fig, ax = plt.subplots(figsize=(18, 10.2), dpi=180)
+    fig, ax = plt.subplots(figsize=(7.8, 15.5), dpi=220)
     fig.patch.set_facecolor(BG)
     ax.set_facecolor(BG)
-    ax.set_xlim(0, 18)
-    ax.set_ylim(0, 10.2)
+    ax.set_xlim(0, 8)
+    ax.set_ylim(0, 15.5)
     ax.axis("off")
 
     ax.text(
-        0.55,
-        9.72,
+        0.45,
+        15.08,
         "latent-recommend pipeline architecture",
         color=TEXT,
-        fontsize=25,
+        fontsize=22,
         weight="bold",
         ha="left",
         va="top",
     )
     ax.text(
-        0.58,
-        9.27,
-        "Content-first recommendation: raw audio -> ACE-Step VAE latent geometry -> synthetic playlists -> centroid completion.",
+        0.48,
+        14.72,
+        "Content-first flow: raw audio -> ACE-Step VAE latents -> retrieval + playlist completion.",
         color=MUTED,
-        fontsize=11,
+        fontsize=10.8,
         ha="left",
         va="top",
     )
 
-    group_box(ax, 0.45, 0.85, 3.0, 7.75, "open music inputs", BLUE)
-    group_box(ax, 3.8, 0.85, 3.0, 7.75, "sampling contract", GREEN)
-    group_box(ax, 7.15, 0.85, 4.05, 7.75, "vae-only extraction", ORANGE)
-    group_box(ax, 11.55, 0.85, 2.55, 7.75, "artifact bundle", PURPLE)
-    group_box(ax, 14.45, 5.05, 3.05, 3.55, "interactive recommender", TEAL)
-    group_box(ax, 14.45, 0.85, 3.05, 3.65, "playlist completion", RED)
+    left_x = 0.45
+    left_w = 3.25
+    right_x = 4.15
+    right_w = 3.4
+    lane_bottom = 1.05
+    lane_top = 14.05
+    lane_h = lane_top - lane_bottom
 
-    rounded_box(ax, 0.8, 7.2, 2.25, 0.92, "MTG-Jamendo", "Open music audio\nstreamed from HF tar shards", BLUE)
-    waveform(ax, 1.05, 6.35, 1.72, 0.55)
-    label(ax, 1.91, 6.12, "48 kHz stereo waveform", GREEN, 7.5)
-    rounded_box(ax, 0.8, 5.02, 2.25, 0.92, "Metadata tags", "Mood, genre, instrument,\nand style labels", BLUE)
-    rounded_box(ax, 0.8, 3.8, 2.25, 0.92, "Run config", "200s max duration\n100-track checkpoints", BLUE)
+    group_box(ax, left_x, lane_bottom, left_w, lane_h, "dataset + extraction", ORANGE)
+    group_box(ax, right_x, lane_bottom, right_w, lane_h, "artifacts + product surfaces", TEAL)
 
-    rounded_box(ax, 4.1, 7.1, 2.35, 1.08, "N-polar sampler", "10 broad proxy buckets\n200 target tracks each", GREEN)
-    rounded_box(ax, 4.1, 5.62, 2.35, 1.08, "Two Colab shards", "5 buckets per session\nH100/T4 compatible", GREEN)
-    rounded_box(ax, 4.1, 4.15, 2.35, 1.08, "Merge + dedupe", "2,000 raw rows\n1,734 unique tracks", GREEN)
-    rounded_box(ax, 4.1, 2.52, 2.35, 1.08, "Proxy buckets", "Weak playlist contexts\nused for sampling + QA", GREEN)
+    rounded_box(
+        ax,
+        0.7,
+        12.65,
+        2.75,
+        1.05,
+        "MTG-Jamendo inputs",
+        "Open music audio + metadata\nstreamed from HF tar shards",
+        BLUE,
+    )
+    waveform(ax, 0.95, 12.0, 2.25, 0.45)
+    label(ax, 2.05, 11.78, "48 kHz stereo waveform", GREEN, 7.4)
+    rounded_box(
+        ax,
+        0.7,
+        11.0,
+        2.75,
+        0.95,
+        "Sampling contract",
+        "10 proxy buckets\n200 target tracks each",
+        GREEN,
+    )
+    rounded_box(
+        ax,
+        0.7,
+        9.8,
+        2.75,
+        0.95,
+        "Merge + dedupe",
+        "2,000 raw rows ->\n1,734 unique tracks",
+        GREEN,
+    )
+    rounded_box(
+        ax,
+        0.7,
+        8.45,
+        2.75,
+        1.05,
+        "Decode audio",
+        "Opus -> waveform\nresample + crop",
+        ORANGE,
+    )
+    trapezoid(
+        ax,
+        0.7,
+        7.0,
+        2.9,
+        1.15,
+        "ACE-Step 1.5 VAE",
+        "AutoencoderOobleck\nsubfolder='vae'",
+        ORANGE,
+    )
+    rounded_box(
+        ax,
+        0.7,
+        5.75,
+        2.75,
+        1.0,
+        "Pool latent time",
+        "Mean over latent frames\none song vector",
+        ORANGE,
+    )
+    rounded_box(
+        ax,
+        0.7,
+        4.5,
+        2.75,
+        1.0,
+        "Normalize",
+        "L2-normalized\n64-D embedding",
+        ORANGE,
+    )
+    rounded_box(
+        ax,
+        1.52,
+        3.45,
+        1.5,
+        0.86,
+        "LM/DiT",
+        "not loaded\nfor M2",
+        "#6b7280",
+        "#151820",
+        9,
+    )
+    label(ax, 2.28, 3.18, "generation stack bypassed", "#7c8494", 7.3)
 
-    rounded_box(ax, 7.45, 7.06, 1.95, 0.92, "Decode audio", "Opus -> waveform\nresample and crop", ORANGE)
-    trapezoid(ax, 7.45, 5.35, 2.2, 1.18, "ACE-Step 1.5 VAE", "AutoencoderOobleck\nsubfolder='vae'", ORANGE)
-    rounded_box(ax, 9.05, 3.82, 1.82, 0.98, "Pool latent time", "Mean over latent frames\none song vector", ORANGE)
-    rounded_box(ax, 7.45, 2.28, 2.05, 0.98, "Normalize", "L2-normalized\n64-D embedding", ORANGE)
-    rounded_box(ax, 9.72, 6.28, 1.08, 1.4, "LM/DiT", "not loaded\nfor M2", "#6b7280", "#151820", 9)
-    label(ax, 10.26, 5.96, "generation stack bypassed", "#7c8494", 7.5)
+    rounded_box(
+        ax,
+        4.45,
+        11.95,
+        2.8,
+        1.0,
+        "Artifact bundle",
+        "embeddings.npy + metadata.db\nvectors.index + previews + metrics",
+        PURPLE,
+    )
+    rounded_box(
+        ax,
+        4.45,
+        10.4,
+        2.8,
+        1.0,
+        "Interactive recommender",
+        "seed selection ->\nsimilarity search -> Streamlit UI",
+        TEAL,
+    )
+    rounded_box(
+        ax,
+        4.45,
+        9.0,
+        2.8,
+        1.0,
+        "Playlist completion",
+        "generate 30 playlists\nnearest latent neighbors",
+        RED,
+    )
+    rounded_box(
+        ax,
+        4.45,
+        7.8,
+        2.8,
+        0.92,
+        "Holdout completion",
+        "hide 1-2 tracks\nquery centroid",
+        RED,
+    )
+    rounded_box(
+        ax,
+        4.45,
+        6.7,
+        2.8,
+        0.92,
+        "Evaluation",
+        "Precision@4, Recall@4\nHitRate@4, MRR@4",
+        RED,
+    )
 
-    rounded_box(ax, 11.88, 7.0, 1.88, 0.86, "embeddings.npy", "1,734 x 64 float matrix", PURPLE)
-    rounded_box(ax, 11.88, 5.82, 1.88, 0.86, "metadata.db", "tracks, artists, albums,\nplaylists, evaluations", PURPLE)
-    rounded_box(ax, 11.88, 4.54, 1.88, 0.86, "vectors.index", "FAISS cosine index", PURPLE)
-    rounded_box(ax, 11.88, 3.35, 1.88, 0.86, "previews/*.mp3", "15 second snippets", PURPLE)
-    rounded_box(ax, 11.88, 2.08, 1.88, 0.86, "metrics.json", "retrieval, topology,\nplaylist completion", PURPLE)
+    rounded_box(
+        ax,
+        4.45,
+        4.7,
+        2.8,
+        1.55,
+        "Middle-column fit target",
+        "Portrait-first layout for poster center column\n(minimal crossing arrows + larger labels).\nUse this figure as the architecture anchor.",
+        "#c6d0e3",
+        "#1a2130",
+        9,
+    )
 
-    rounded_box(ax, 14.78, 7.15, 2.38, 0.92, "Seed selection", "track, artist, album,\nor playlist context", TEAL)
-    rounded_box(ax, 14.78, 6.0, 2.38, 0.92, "Similarity search", "single seed or\nmulti-seed centroid", TEAL)
-    rounded_box(ax, 14.78, 4.92, 2.38, 0.9, "Streamlit UI", "audio previews\nPCA topology", TEAL)
+    arrow(ax, (2.06, 12.65), (2.06, 11.95), GREEN)
+    arrow(ax, (2.06, 11.0), (2.06, 10.75), GREEN)
+    arrow(ax, (2.06, 9.8), (2.06, 9.5), GREEN)
+    arrow(ax, (2.06, 8.45), (2.06, 8.16), ORANGE)
+    arrow(ax, (2.06, 7.0), (2.06, 6.75), ORANGE)
+    arrow(ax, (2.06, 5.75), (2.06, 5.48), ORANGE)
+    arrow(ax, (2.06, 4.5), (2.06, 4.28), ORANGE)
 
-    rounded_box(ax, 14.78, 3.45, 2.38, 0.92, "Generate playlists", "30 playlists, 5-9 songs\nnearest latent neighbors", RED)
-    rounded_box(ax, 14.78, 2.25, 2.38, 0.92, "Holdout completion", "hide 1-2 tracks\nquery centroid", RED)
-    rounded_box(ax, 14.78, 1.04, 2.38, 1.0, "Evaluate", "Precision@4, Recall@4\nHitRate@4, MRR@4", RED)
+    arrow(ax, (3.52, 5.0), (4.42, 12.4), PURPLE, rad=0.24)
+    arrow(ax, (5.86, 10.4), (5.86, 10.05), TEAL)
+    arrow(ax, (5.86, 9.0), (5.86, 8.75), RED)
+    arrow(ax, (5.86, 7.8), (5.86, 7.55), RED)
+    arrow(ax, (5.86, 6.7), (5.86, 6.35), RED)
 
-    arrow(ax, (3.05, 7.66), (4.08, 7.66), BLUE)
-    arrow(ax, (3.05, 5.48), (4.08, 7.34), BLUE, rad=0.16)
-    arrow(ax, (3.05, 4.26), (4.08, 6.07), BLUE, rad=0.18)
-    arrow(ax, (5.28, 7.1), (5.28, 6.72), GREEN)
-    arrow(ax, (5.28, 5.62), (5.28, 5.24), GREEN)
-    arrow(ax, (5.28, 4.15), (5.28, 3.62), GREEN)
-    arrow(ax, (6.45, 4.7), (7.42, 7.38), GREEN, rad=-0.22)
-    arrow(ax, (8.42, 7.06), (8.47, 6.56), ORANGE)
-    arrow(ax, (9.62, 5.94), (10.0, 4.82), ORANGE, rad=-0.12)
-    arrow(ax, (9.8, 3.82), (8.48, 3.28), ORANGE, rad=-0.1)
-    arrow(ax, (9.5, 2.78), (11.86, 7.35), PURPLE, rad=-0.28)
-    arrow(ax, (9.5, 2.78), (11.86, 6.18), PURPLE, rad=-0.2)
-    arrow(ax, (9.5, 2.78), (11.86, 4.9), PURPLE, rad=-0.1)
-    arrow(ax, (13.76, 7.42), (14.76, 7.62), TEAL)
-    arrow(ax, (13.76, 4.98), (14.76, 6.45), TEAL, rad=0.14)
-    arrow(ax, (13.76, 5.15), (14.76, 3.88), RED, rad=-0.12)
-    arrow(ax, (15.96, 7.15), (15.96, 6.95), TEAL)
-    arrow(ax, (15.96, 6.0), (15.96, 5.77), TEAL)
-    arrow(ax, (15.96, 3.45), (15.96, 3.2), RED)
-    arrow(ax, (15.96, 2.25), (15.96, 1.99), RED)
-
-    label(ax, 8.68, 4.98, "latent frames", ORANGE, 7.8)
-    label(ax, 10.55, 2.95, "64-D content vector", ORANGE, 7.8)
-    label(ax, 14.18, 6.72, "retrieval path", TEAL, 7.8)
-    label(ax, 14.2, 3.84, "playlist path", RED, 7.8)
+    label(ax, 3.78, 8.55, "64-D content vectors", ORANGE, 7.8, "left")
+    label(ax, 5.9, 9.78, "retrieval path", TEAL, 7.8)
+    label(ax, 5.9, 8.4, "playlist path", RED, 7.8)
 
     ax.text(
-        0.62,
-        0.28,
-        "Canonical facts: 10 proxy buckets | 1,734 unique tracks | 64-D ACE-Step VAE embeddings | 30 generated playlists | CPU-only dashboard.",
+        0.45,
+        0.36,
+        "Canonical facts: 10 proxy buckets | 1,734 unique tracks | 64-D embeddings | 30 generated playlists | CPU-only dashboard.",
         color=MUTED,
-        fontsize=9.5,
+        fontsize=9.4,
         ha="left",
         va="bottom",
     )
 
-    fig.savefig(PNG_PATH, facecolor=BG, bbox_inches="tight", pad_inches=0.18)
-    fig.savefig(SVG_PATH, facecolor=BG, bbox_inches="tight", pad_inches=0.18)
+    fig.savefig(PNG_PATH, facecolor=BG, bbox_inches="tight", pad_inches=0.15)
+    fig.savefig(SVG_PATH, facecolor=BG, bbox_inches="tight", pad_inches=0.15)
     plt.close(fig)
     print(f"Wrote {PNG_PATH}")
     print(f"Wrote {SVG_PATH}")

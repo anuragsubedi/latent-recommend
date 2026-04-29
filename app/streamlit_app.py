@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 from sklearn.cluster import KMeans
 
@@ -220,6 +223,7 @@ def load_playlist_tables(metadata_path: Path) -> tuple[pd.DataFrame, pd.DataFram
                 COALESCE(a.display_name, t.artist, 'Unknown Artist') AS artist_display_name,
                 COALESCE(al.display_title, t.album, 'Unknown Album') AS album_display_title,
                 t.primary_tag,
+                t.tags,
                 t.duration,
                 t.preview_path,
                 t.pca_1,
@@ -237,13 +241,6 @@ def load_playlist_tables(metadata_path: Path) -> tuple[pd.DataFrame, pd.DataFram
     return playlists, playlist_tracks
 
 
-@st.cache_data(show_spinner=False)
-def compute_micro_clusters(embeddings: np.ndarray, n_clusters: int = 120) -> np.ndarray:
-    cluster_count = min(n_clusters, len(embeddings))
-    model = KMeans(n_clusters=cluster_count, random_state=42, n_init=10)
-    return model.fit_predict(np.asarray(embeddings, dtype="float32"))
-
-
 def display_title(row: pd.Series) -> str:
     return str(row.get("track_display_title") or row.get("display_title") or row.get("title") or row.get("track_id"))
 
@@ -256,8 +253,294 @@ def display_album(row: pd.Series) -> str:
     return str(row.get("album_display_title") or row.get("album") or "Unknown Album")
 
 
+def parse_tags_cell(value: object) -> list[str]:
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return []
+    s = str(value).strip()
+    if not s:
+        return []
+    try:
+        data = json.loads(s)
+        if isinstance(data, list):
+            return [str(x).strip() for x in data if str(x).strip()]
+        return [s]
+    except json.JSONDecodeError:
+        return [p.strip() for p in s.replace('"', "").split(",") if p.strip()]
+
+
+def format_tags_display(value: object, max_chars: int = 220) -> str:
+    tokens = parse_tags_cell(value)
+    if not tokens:
+        return ""
+    text = " · ".join(tokens)
+    if len(text) > max_chars:
+        return text[: max_chars - 1] + "…"
+    return text
+
+
+def ensure_tags_display(df: pd.DataFrame) -> pd.DataFrame:
+    out = df
+    if "tags_display" not in out.columns and "tags" in out.columns:
+        out = out.copy()
+        out["tags_display"] = out["tags"].map(lambda v: format_tags_display(v))
+    elif "tags_display" not in out.columns:
+        out = out.copy()
+        out["tags_display"] = ""
+    return out
+
+
+def jamendo_subtag_vocabulary(tracks: pd.DataFrame, max_tokens: int = 80) -> list[str]:
+    if "tags" not in tracks.columns:
+        return []
+    counts: Counter[str] = Counter()
+    for cell in tracks["tags"].tolist():
+        for tok in parse_tags_cell(cell):
+            counts[str(tok).lower()] += 1
+    return [token for token, _ in counts.most_common(max_tokens)]
+
+
+def apply_centroid_distance_trim(frame: pd.DataFrame, trim_pct: float) -> pd.DataFrame:
+    if trim_pct <= 0 or frame.empty or len(frame) < 10:
+        return frame
+    xyz = frame[["pca_1", "pca_2", "pca_3"]].to_numpy(dtype=np.float64)
+    centroid = xyz.mean(axis=0)
+    dist = np.linalg.norm(xyz - centroid, axis=1)
+    thresh = np.percentile(dist, 100 - trim_pct)
+    return frame.iloc[dist <= thresh].copy()
+
+
+def apply_axis_quantile_trim(frame: pd.DataFrame, q_low: float, q_high: float) -> pd.DataFrame:
+    if frame.empty or q_low >= q_high:
+        return frame
+    out = frame.copy()
+    for col in ("pca_1", "pca_2", "pca_3"):
+        lo, hi = out[col].quantile([q_low, q_high])
+        out = out[(out[col] >= lo) & (out[col] <= hi)]
+    return out
+
+
+def jamendo_tags_haystack(row: pd.Series) -> str:
+    return " ".join(parse_tags_cell(row.get("tags"))).lower()
+
+
+def refine_topology_frame(
+    frame: pd.DataFrame,
+    proxy_buckets: list[str] | None,
+    subtag_tokens: list[str],
+    substring: str,
+) -> pd.DataFrame:
+    out = frame
+    if proxy_buckets:
+        out = out[out["primary_tag"].isin(proxy_buckets)]
+    tag_filter_on = bool(subtag_tokens) or bool(substring.strip())
+    if tag_filter_on and "tags" in out.columns:
+        masks = []
+        if subtag_tokens:
+            selected = {t.lower() for t in subtag_tokens}
+
+            def has_token(row: pd.Series) -> bool:
+                return any(t.lower() in selected for t in parse_tags_cell(row.get("tags")))
+
+            masks.append(out.apply(has_token, axis=1))
+        if substring.strip():
+            sub = substring.strip().lower()
+
+            def has_sub(row: pd.Series) -> bool:
+                return sub in jamendo_tags_haystack(row)
+
+            masks.append(out.apply(has_sub, axis=1))
+        combined = masks[0]
+        for m in masks[1:]:
+            combined = combined & m
+        out = out[combined]
+    return out.copy()
+
+
+def subgenre_color_labels(frame: pd.DataFrame, selected_tokens: list[str]) -> pd.Series:
+    sel = [t.lower() for t in selected_tokens]
+    labels: list[str] = []
+    for _, row in frame.iterrows():
+        track_toks = [t.lower() for t in parse_tags_cell(row.get("tags"))]
+        hit = None
+        for wanted in sel:
+            if wanted in track_toks:
+                hit = wanted
+                break
+        labels.append(hit if hit else "other / no selected sub-tag")
+    return pd.Series(labels, index=frame.index)
+
+
+def collapse_rare_categories(frame: pd.DataFrame, column: str, max_shown: int = 22) -> tuple[pd.DataFrame, str]:
+    filled = frame[column].fillna("unknown").astype(str)
+    vc = filled.value_counts()
+    if len(vc) <= max_shown:
+        return frame.copy(), column
+    keep = set(vc.head(max_shown).index)
+    out = frame.copy()
+    plot_col = f"{column}_grouped"
+    out[plot_col] = filled.where(filled.isin(keep), "other")
+    return out, plot_col
+
+
+def render_topology(tracks: pd.DataFrame, engine: RetrievalEngine) -> None:
+    st.markdown("## Latent Topology")
+    st.markdown(
+        """
+        <div class="section-intro">
+        Global PCA axes are a <b>lossy 3D lens</b> on the 64-D ACE-Step VAE latents. The full
+        1,734-point cloud looks noisy when colored by broad proxy buckets; that overlap is expected.
+        Use the control column to trim outliers, slice Jamendo sub-tags from the <code>tags</code>
+        array, or re-color by artists that appear a bounded number of times. K-means clusters summarize
+        coarse acoustic neighborhoods for evaluation and overlays — micro-cluster mode increases resolution for exploration.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    ctrl, main = st.columns([3, 7])
+    with ctrl:
+        st.markdown("### Filters & coloring")
+        st.caption(
+            "Leave refinement off for the deliberately “messy” global view. Turn it on to carve "
+            "finer neighborhoods for screenshots or intuition."
+        )
+        use_refine = st.toggle(
+            "Refine subset (sub-tags, buckets, outlier trims)",
+            value=False,
+            key="topology_refine",
+        )
+        color_by = st.radio(
+            "Color by",
+            [
+                "primary_tag",
+                "cluster",
+                "micro_cluster",
+                "subgenre_tokens",
+                "artist_frequency",
+            ],
+            format_func={
+                "primary_tag": "Proxy bucket",
+                "cluster": "Stored K-Means (10)",
+                "micro_cluster": "120 micro-clusters",
+                "subgenre_tokens": "Jamendo sub-tags (pick tokens)",
+                "artist_frequency": "Artist (frequency band)",
+            }.get,
+            key="topology_color_mode",
+        )
+        micro_k = 120
+        max_legend_artists = st.slider("Max legend groups (artist / sub-tag)", 12, 36, 22, key="topology_legend_cap")
+
+        proxy_pick = st.multiselect(
+            "Limit to proxy buckets (optional)",
+            sorted(tracks["primary_tag"].dropna().unique()),
+            key="topology_proxy_pick",
+        )
+        vocab = jamendo_subtag_vocabulary(tracks, max_tokens=80)
+        subtag_pick = st.multiselect(
+            "Jamendo sub-tags (from tags array)",
+            vocab,
+            key="topology_subtag_pick",
+        )
+        substr = st.text_input("Substring within tags (optional)", key="topology_substr")
+
+        st.markdown("**Outlier thresholds**")
+        trim_pct = st.slider("Drop farthest % from PCA centroid", 0, 35, 0, key="topology_centroid_trim")
+        q_low = st.slider("Per-axis quantile low keep", 0.0, 0.2, 0.01, 0.005, key="topology_qlow")
+        q_high = st.slider("Per-axis quantile high keep", 0.8, 1.0, 0.99, 0.005, key="topology_qhigh")
+
+        p_min = st.slider("Artist min tracks (in filtered frame)", 1, 12, 2, key="topology_pmin")
+        p_max = st.slider("Artist max tracks (in filtered frame)", 2, 30, 8, key="topology_pmax")
+
+    plot_base = tracks.copy()
+    if use_refine:
+        refined = refine_topology_frame(plot_base, proxy_pick or None, subtag_pick, substr)
+        refined = apply_axis_quantile_trim(refined, q_low, q_high)
+        refined = apply_centroid_distance_trim(refined, float(trim_pct))
+    else:
+        refined = plot_base
+        if proxy_pick:
+            refined = refined[refined["primary_tag"].isin(proxy_pick)].copy()
+
+    if refined.empty:
+        st.warning("No tracks left after filters — relax thresholds or bucket choices.")
+        return
+
+    plot_frame = refined
+    color_col = color_by
+
+    if color_by == "micro_cluster":
+        sub_embeddings = engine.embeddings[plot_frame["faiss_id"].astype(int).values]
+        n = len(sub_embeddings)
+        if n < 3:
+            plot_frame = plot_frame.copy()
+            color_col = "primary_tag"
+        else:
+            k = min(micro_k, n)
+            model = KMeans(n_clusters=k, random_state=42, n_init=10)
+            plot_frame = plot_frame.copy()
+            plot_frame["micro_cluster"] = model.fit_predict(np.asarray(sub_embeddings, dtype="float32")).astype(str)
+            color_col = "micro_cluster"
+    elif color_by == "cluster":
+        plot_frame = plot_frame.copy()
+        plot_frame["cluster"] = plot_frame["cluster"].astype(str)
+        color_col = "cluster"
+    elif color_by == "subgenre_tokens":
+        if not subtag_pick:
+            st.warning("Pick at least one Jamendo sub-tag to color by this mode.")
+            color_col = "primary_tag"
+        else:
+            plot_frame = plot_frame.copy()
+            plot_frame["subgenre_color"] = subgenre_color_labels(plot_frame, subtag_pick)
+            plot_frame, color_col = collapse_rare_categories(plot_frame, "subgenre_color", max_legend_artists)
+    elif color_by == "artist_frequency":
+        counts = plot_frame["artist_display_name"].fillna("Unknown").value_counts()
+        lo, hi = min(p_min, p_max), max(p_min, p_max)
+        allowed = counts[(counts >= lo) & (counts <= hi)].index
+        plot_frame = plot_frame[plot_frame["artist_display_name"].isin(allowed)].copy()
+        if plot_frame.empty:
+            st.warning("No artists in that frequency band for the current frame. Widen P/Q or filters.")
+            return
+        plot_frame, color_col = collapse_rare_categories(plot_frame, "artist_display_name", max_legend_artists)
+    else:
+        plot_frame = plot_frame.copy()
+        color_col = "primary_tag"
+
+    with ctrl:
+        st.metric("Points in plot", len(plot_frame))
+        with st.expander("Jamendo tag vocabulary snapshot"):
+            counts = Counter()
+            for cell in tracks["tags"].tolist():
+                for tok in parse_tags_cell(cell):
+                    counts[str(tok).lower()] += 1
+            st.caption(f"{len(counts)} distinct tokens across the corpus (top 25 by frequency).")
+            st.dataframe(
+                pd.DataFrame(counts.most_common(25), columns=["token", "track_count"]),
+                hide_index=True,
+                height=260,
+            )
+
+    with main:
+        st.markdown("### Global PCA projection")
+        info_card(
+            "PCA vs. retrieval",
+            "Nearest-neighbor search uses full 64-D latents (or ablations like PCA10). This page only visualizes "
+            "the first three principal axes stored per track so we can rotate a faithful 3D summary of the same vectors.",
+        )
+        info_card(
+            "Why keep K-means?",
+            "Ten stored clusters give a coarse unsupervised partition of the VAE geometry — useful for quick overlays, "
+            "baseline topology metrics (silhouette / DBI), and comparing against micro-clusters. They are not genre labels; "
+            "they approximate contiguous regions in latent space that often align with local kNN neighborhoods.",
+        )
+        fig = topology_plot(plot_frame, color_column=color_col, height=720)
+        st.plotly_chart(fig, width="stretch")
+
+
 def format_track(row: pd.Series) -> str:
-    return f"{display_title(row)} - {display_artist(row)} [{row.get('primary_tag', 'untagged')}]"
+    tag = row.get("primary_tag", "untagged")
+    extra = format_tags_display(row.get("tags"), max_chars=160)
+    if extra:
+        return f"{display_title(row)} - {display_artist(row)} [{tag}] — tags: {extra}"
+    return f"{display_title(row)} - {display_artist(row)} [{tag}]"
 
 
 def preview_path(paths: ArtifactPaths, row: pd.Series) -> Path | None:
@@ -374,6 +657,7 @@ def render_bucket_chart(tracks: pd.DataFrame) -> None:
 
 
 def render_track_table(frame: pd.DataFrame, height: int = 380) -> None:
+    frame = ensure_tags_display(frame)
     columns = [
         "faiss_id",
         "track_id",
@@ -381,6 +665,7 @@ def render_track_table(frame: pd.DataFrame, height: int = 380) -> None:
         "artist_display_name",
         "album_display_title",
         "primary_tag",
+        "tags_display",
         "duration",
         "cluster",
     ]
@@ -412,8 +697,9 @@ def filter_tracks(
         selected_albums = right.multiselect("Album", album_values, key=f"{key_prefix}_album")
         if selected_albums:
             filtered = filtered[filtered["album_display_title"].isin(selected_albums)]
-    search = st.text_input("Search track, artist, album, or tag", key=f"{key_prefix}_search")
+    search = st.text_input("Search track, artist, album, tag, or sub-tag", key=f"{key_prefix}_search")
     if search:
+        filtered = ensure_tags_display(filtered)
         haystack = (
             filtered["track_display_title"].fillna("")
             + " "
@@ -422,6 +708,8 @@ def filter_tracks(
             + filtered["album_display_title"].fillna("")
             + " "
             + filtered["primary_tag"].fillna("")
+            + " "
+            + filtered["tags_display"].fillna("")
         ).str.lower()
         filtered = filtered[haystack.str.contains(search.lower(), regex=False)]
     return filtered
@@ -436,13 +724,13 @@ def topology_plot(
 ) -> go.Figure:
     highlight_ids = highlight_ids or set()
     neighbor_ids = neighbor_ids or set()
-    frame = tracks.copy()
+    frame = ensure_tags_display(tracks.copy())
     frame["role"] = "corpus"
     frame.loc[frame["faiss_id"].isin(neighbor_ids), "role"] = "recommendation"
     frame.loc[frame["faiss_id"].isin(highlight_ids), "role"] = "seed"
     frame["track"] = frame.apply(display_title, axis=1)
     frame["artist_name"] = frame.apply(display_artist, axis=1)
-    hover = ["faiss_id", "track", "artist_name", "primary_tag", "cluster"]
+    hover = [c for c in ["faiss_id", "track", "artist_name", "primary_tag", "tags_display", "cluster"] if c in frame.columns]
     fig = px.scatter_3d(
         frame,
         x="pca_1",
@@ -491,11 +779,15 @@ def playlist_summary(playlists: pd.DataFrame, playlist_tracks: pd.DataFrame) -> 
 
 
 def labels_for_tracks(frame: pd.DataFrame) -> dict[str, int]:
+    frame = ensure_tags_display(frame)
     safe = frame.sort_values(["artist_display_name", "album_display_title", "track_display_title", "faiss_id"])
-    return {
-        f"{display_title(row)} | {display_artist(row)} | {display_album(row)} | {row['primary_tag']}": int(row["faiss_id"])
-        for _, row in safe.iterrows()
-    }
+    labels: dict[str, int] = {}
+    for _, row in safe.iterrows():
+        tag = row["primary_tag"]
+        td = format_tags_display(row.get("tags"), max_chars=80)
+        suffix = f" | sub-tags: {td}" if td else ""
+        labels[f"{display_title(row)} | {display_artist(row)} | {display_album(row)} | {tag}{suffix}"] = int(row["faiss_id"])
+    return labels
 
 
 def render_strategy_cards() -> None:
@@ -712,6 +1004,7 @@ def render_playlists(
                     "artist_display_name",
                     "album_display_title",
                     "primary_tag",
+                    "tags_display",
                     "duration",
                 ]
             ],
@@ -871,10 +1164,13 @@ def render_recommendation_results(
         if neighbors.empty:
             st.warning("No recommendations found.")
         else:
+            tracks_tagged = ensure_tags_display(tracks)
+            tag_map = tracks_tagged.set_index("faiss_id")["tags_display"].to_dict()
             result = neighbors.copy()
             result["track"] = result.apply(display_title, axis=1)
             result["artist_name"] = result.apply(display_artist, axis=1)
             result["album_name"] = result.apply(display_album, axis=1)
+            result["tags_display"] = result["faiss_id"].astype(int).map(lambda i: tag_map.get(i, ""))
             result["completion_hit"] = result["faiss_id"].astype(int).isin(holdout_ids)
             st.dataframe(
                 result[
@@ -884,6 +1180,7 @@ def render_recommendation_results(
                         "artist_name",
                         "album_name",
                         "primary_tag",
+                        "tags_display",
                         "distance",
                         "completion_hit",
                     ]
@@ -914,38 +1211,6 @@ def render_recommendation_results(
         height=640,
     )
     fig.update_traces(marker={"size": 8, "opacity": 0.95})
-    st.plotly_chart(fig, width="stretch")
-
-
-def render_topology(tracks: pd.DataFrame, engine: RetrievalEngine) -> None:
-    st.markdown("## Latent Topology")
-    st.markdown(
-        """
-        <div class="section-intro">
-        This page keeps the global 1,734-track view. It is expected to look dense:
-        the full corpus contains many local acoustic neighborhoods. Use the color
-        control to switch from proxy buckets to a 120-micro-cluster lens.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    view = st.radio(
-        "Color by",
-        ["primary_tag", "cluster", "micro_cluster"],
-        horizontal=True,
-        format_func={
-            "primary_tag": "Proxy bucket",
-            "cluster": "Stored K-Means cluster",
-            "micro_cluster": "120 micro-clusters",
-        }.get,
-        key="topology_color",
-    )
-    plot_frame = tracks.copy()
-    if view == "micro_cluster":
-        plot_frame["micro_cluster"] = compute_micro_clusters(engine.embeddings, n_clusters=120).astype(str)
-    else:
-        plot_frame[view] = plot_frame[view].astype(str)
-    fig = topology_plot(plot_frame, color_column=view, height=760)
     st.plotly_chart(fig, width="stretch")
 
 
@@ -1105,8 +1370,10 @@ def render_evaluation(metrics: dict) -> None:
 apply_theme()
 paths, engine, tracks, metrics, has_artifacts = load_bundle()
 tracks = available_plot_frame(tracks, engine)
+tracks = ensure_tags_display(tracks)
 engine.tracks = tracks
 playlists, playlist_tracks = load_playlist_tables(paths.metadata_path)
+playlist_tracks = ensure_tags_display(playlist_tracks)
 
 st.title("latent-recommend")
 st.caption("Content-first music recommendation using ACE-Step 1.5 VAE latent geometry.")

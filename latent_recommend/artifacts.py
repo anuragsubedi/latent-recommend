@@ -39,15 +39,15 @@ def load_metadata(paths: ArtifactPaths) -> pd.DataFrame:
 
 def demo_tracks() -> pd.DataFrame:
     rows = [
-        ("ambient_soundscape", "Long Pad Drift", "Fixture Artist A", -1.2, 0.1, 0.3),
-        ("electronic_dance", "Sub Pulse Study", "Fixture Artist B", -1.0, 0.2, 0.4),
-        ("classical_orchestral", "String Room", "Fixture Artist C", 0.6, -0.4, 0.2),
-        ("jazz_soul", "Blue Interval", "Fixture Artist D", 0.9, 0.5, -0.2),
-        ("hiphop_rap", "Loop Grid", "Fixture Artist E", -0.3, 1.1, -0.5),
-        ("indie_rock", "Bright Distortion", "Fixture Artist F", 1.4, -1.0, 0.6),
+        ("ambient_soundscape", "Long Pad Drift", "Fixture Artist A", "Ambient / atmospheric / meditative", -1.2, 0.1, 0.3),
+        ("electronic_dance", "Sub Pulse Study", "Fixture Artist B", "Electronic / techno / dance", -1.0, 0.2, 0.4),
+        ("classical_orchestral", "String Room", "Fixture Artist C", "Classical / orchestral", 0.6, -0.4, 0.2),
+        ("jazz_soul", "Blue Interval", "Fixture Artist D", "Jazz / soul", 0.9, 0.5, -0.2),
+        ("hiphop_rap", "Loop Grid", "Fixture Artist E", "Hiphop / rap / beats", -0.3, 1.1, -0.5),
+        ("indie_rock", "Bright Distortion", "Fixture Artist F", "Indie / rock / alternative", 1.4, -1.0, 0.6),
     ]
     data = []
-    for idx, (tag, title, artist, x, y, z) in enumerate(rows):
+    for idx, (tag, title, artist, tag_blob, x, y, z) in enumerate(rows):
         data.append(
             {
                 "faiss_id": idx,
@@ -62,7 +62,7 @@ def demo_tracks() -> pd.DataFrame:
                 "album_display_title": "Fixture Set",
                 "duration": 30.0,
                 "primary_tag": tag,
-                "tags": tag,
+                "tags": json.dumps([s.strip() for s in tag_blob.split("/")]),
                 "audio_url": None,
                 "preview_path": None,
                 "split": "demo",
